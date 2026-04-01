@@ -50,12 +50,6 @@ func notImplemented(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
-// ReportHandler returns a summary of all Terraform resources.
-// GET /api/v1/report
-func (h *Handler) ReportHandler(w http.ResponseWriter, r *http.Request) {
-	notImplemented(w, r)
-}
-
 // ResourcesHandler returns a filtered list of Terraform resources.
 // GET /api/v1/resources
 func (h *Handler) ResourcesHandler(w http.ResponseWriter, r *http.Request) {
