@@ -20,6 +20,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/flux-iac/tofu-controller/internal/web"
 	"github.com/flux-iac/tofu-controller/mtls"
 	"github.com/flux-iac/tofu-controller/runner"
 
@@ -100,6 +101,7 @@ func main() {
 		usePodSubdomainResolution bool
 		usePriorityQueue          bool
 		gracefulShutdownTimeout   time.Duration
+		webServerPort             int
 	)
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
@@ -125,6 +127,7 @@ func main() {
 	flag.BoolVar(&usePriorityQueue, "use-priority-queue", true, "Enable the priority queue feature.")
 	flag.DurationVar(&gracefulShutdownTimeout, "graceful-shutdown-timeout", 4*time.Minute,
 		"The duration to wait for active reconciliations to complete during shutdown before forcing termination (0 to disable).")
+	flag.IntVar(&webServerPort, "web-server-port", 0, "Port for the web UI server (0 to disable).")
 
 	clientOptions.BindFlags(flag.CommandLine)
 	logOptions.BindFlags(flag.CommandLine)
@@ -287,6 +290,15 @@ func main() {
 	setupLog.Info("Starting manager", "version", BuildVersion, "sha", BuildSHA)
 
 	shutdownCaller = func() { reconciler.ShutdownCoordinator(signalHandlerContext) }
+
+	if webServerPort > 0 {
+		go func() {
+			<-mgr.Elected()
+			if err := web.RunServer(signalHandlerContext, mgr, webServerPort); err != nil {
+				setupLog.Error(err, "web server error")
+			}
+		}()
+	}
 
 	if err := mgr.Start(signalHandlerContext); err != nil {
 		setupLog.Error(err, "problem running manager")
