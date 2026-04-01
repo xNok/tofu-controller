@@ -50,12 +50,6 @@ func notImplemented(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
-// ResourcesHandler returns a filtered list of Terraform resources.
-// GET /api/v1/resources
-func (h *Handler) ResourcesHandler(w http.ResponseWriter, r *http.Request) {
-	notImplemented(w, r)
-}
-
 // ResourceHandler returns a single Terraform resource by namespace and name.
 // GET /api/v1/resource?namespace=...&name=...
 func (h *Handler) ResourceHandler(w http.ResponseWriter, r *http.Request) {
