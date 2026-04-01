@@ -1,4 +1,5 @@
 import { useState } from 'preact/hooks'
+import { shouldUseMockData } from '../../utils/fetch'
 import { ApproveDialog } from './ApproveDialog'
 
 /**
@@ -34,14 +35,19 @@ export function PlanPanel({
     setApproving(true)
     setApproveError(null)
     try {
-      const resp = await fetch('/api/v1/resource/action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'approve', namespace, name })
-      })
-      if (!resp.ok) {
-        const text = await resp.text()
-        throw new Error(text || `HTTP ${resp.status}`)
+      if (shouldUseMockData()) {
+        // In mock mode, simulate a successful approval with a short delay
+        await new Promise(resolve => setTimeout(resolve, 500))
+      } else {
+        const resp = await fetch('/api/v1/resource/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'approve', namespace, name })
+        })
+        if (!resp.ok) {
+          const text = await resp.text()
+          throw new Error(text || `HTTP ${resp.status}`)
+        }
       }
       setShowDialog(false)
       onApprove?.()

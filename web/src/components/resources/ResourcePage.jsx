@@ -3,6 +3,7 @@ import { useRoute } from 'preact-iso'
 import { getStatusBadgeClass, getStatusLabel, getSourceKindBadgeClass } from '../../utils/status'
 import { formatTimestamp } from '../../utils/time'
 import { FAST_POLL_INTERVAL_MS, POLL_INTERVAL_MS } from '../../utils/constants'
+import { fetchWithMock } from '../../utils/fetch'
 import { PlanPanel } from '../plans/PlanPanel'
 
 /**
@@ -23,10 +24,13 @@ export function ResourcePage() {
   const [planError, setPlanError] = useState(null)
 
   async function fetchResource() {
+    const endpoint = `/api/v1/resource?namespace=${encodeURIComponent(namespace)}&name=${encodeURIComponent(name)}`
     try {
-      const resp = await fetch(`/api/v1/resource?namespace=${encodeURIComponent(namespace)}&name=${encodeURIComponent(name)}`)
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-      const data = await resp.json()
+      const data = await fetchWithMock({
+        endpoint,
+        mockPath: '../../mock/resource',
+        mockExport: 'getMockResource'
+      })
       setResource(data)
       setError(null)
     } catch (err) {
@@ -37,12 +41,15 @@ export function ResourcePage() {
   }
 
   async function fetchPlan(ns, n) {
+    const endpoint = `/api/v1/plan?namespace=${encodeURIComponent(ns)}&name=${encodeURIComponent(n)}`
     setPlanLoading(true)
     setPlanError(null)
     try {
-      const resp = await fetch(`/api/v1/plan?namespace=${encodeURIComponent(ns)}&name=${encodeURIComponent(n)}`)
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-      const data = await resp.json()
+      const data = await fetchWithMock({
+        endpoint,
+        mockPath: '../../mock/plan',
+        mockExport: 'getMockPlan'
+      })
       setPlanContent(data.content)
     } catch (err) {
       setPlanError(err.message)
