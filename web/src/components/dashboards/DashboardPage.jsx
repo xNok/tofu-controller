@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'preact/hooks'
 import { reportData, reportUpdatedAt } from '../../app'
+import { fetchWithMock } from '../../utils/fetch'
 import { formatTime } from '../../utils/time'
+import { ResourceCard } from '../resources/ResourceCard'
 
 /**
  * SummaryCard - a single metric card for the dashboard.
@@ -38,6 +41,15 @@ function SummaryCard({ title, count, color, borderColor, icon, href }) {
  */
 export function DashboardPage() {
   const report = reportData.value
+  const [pendingResources, setPendingResources] = useState([])
+
+  useEffect(() => {
+    fetchWithMock({
+      endpoint: '/api/v1/resources?status=PendingApproval',
+      mockPath: '../mock/resources',
+      mockExport: 'getMockResources'
+    }).then(data => setPendingResources(Array.isArray(data) ? data : [])).catch(() => {})
+  }, [report?.pendingApproval])
 
   if (!report) {
     return (
@@ -106,6 +118,24 @@ export function DashboardPage() {
           Updated {formatTime(reportUpdatedAt.value)}
         </span>
       </div>
+
+      {pendingResources.length > 0 && (
+        <div class="mb-8 bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <svg class="w-4 h-4 text-orange-600 dark:text-orange-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <h2 class="text-sm font-semibold text-orange-700 dark:text-orange-400 uppercase tracking-wide">
+              {pendingResources.length} Pending Approval
+            </h2>
+          </div>
+          <div class="space-y-3">
+            {pendingResources.map(r => (
+              <ResourceCard key={`${r.namespace}/${r.name}`} resource={r} />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {cards.map(card => (

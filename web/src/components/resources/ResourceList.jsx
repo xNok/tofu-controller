@@ -32,8 +32,8 @@ export async function fetchResources() {
   try {
     const data = await fetchWithMock({
       endpoint: `/api/v1/resources?${params.toString()}`,
-      mockPath: '../../mock/resources',
-      mockExport: 'mockResources'
+      mockPath: '../mock/resources',
+      mockExport: 'getMockResources'
     })
     resourcesData.value = Array.isArray(data) ? data : []
   } catch (error) {

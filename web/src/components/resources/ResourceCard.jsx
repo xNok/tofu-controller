@@ -18,10 +18,13 @@ export function ResourceCard({ resource }) {
     ? resource.message.split('\n')[0].substring(0, 150) + '...'
     : (resource.message || '')
 
+  const href = `/resource/${encodeURIComponent(resource.namespace)}/${encodeURIComponent(resource.name)}`
+
   return (
-    <div
+    <a
+      href={href}
       data-testid="resource-card"
-      class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow"
+      class="block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md hover:border-tofu-purple dark:hover:border-purple-500 transition-all"
     >
       <div class="flex items-start justify-between gap-2">
         <div class="flex-grow min-w-0">
@@ -43,12 +46,9 @@ export function ResourceCard({ resource }) {
           </div>
 
           {/* Resource name and namespace */}
-          <a
-            href={`/resource/${encodeURIComponent(resource.namespace)}/${encodeURIComponent(resource.name)}`}
-            class="text-sm font-semibold text-gray-900 dark:text-white hover:text-tofu-purple dark:hover:text-purple-400 transition-colors"
-          >
+          <p class="text-sm font-semibold text-gray-900 dark:text-white">
             {resource.namespace}/{resource.name}
-          </a>
+          </p>
 
           {/* Source name */}
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
@@ -80,6 +80,6 @@ export function ResourceCard({ resource }) {
           )}
         </div>
       )}
-    </div>
+    </a>
   )
 }

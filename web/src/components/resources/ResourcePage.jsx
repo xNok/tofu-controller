@@ -28,7 +28,7 @@ export function ResourcePage() {
     try {
       const data = await fetchWithMock({
         endpoint,
-        mockPath: '../../mock/resource',
+        mockPath: '../mock/resource',
         mockExport: 'getMockResource'
       })
       setResource(data)
@@ -47,7 +47,7 @@ export function ResourcePage() {
     try {
       const data = await fetchWithMock({
         endpoint,
-        mockPath: '../../mock/plan',
+        mockPath: '../mock/plan',
         mockExport: 'getMockPlan'
       })
       setPlanContent(data.content)

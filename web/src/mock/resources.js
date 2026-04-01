@@ -1,3 +1,23 @@
+/**
+ * Mock for GET /api/v1/resources?namespace=...&name=...&status=...&sourceKind=...
+ * Applies the same filters the real API would apply.
+ */
+export function getMockResources(endpoint) {
+  const url = new URL(endpoint, 'http://localhost')
+  const ns = url.searchParams.get('namespace') || ''
+  const name = url.searchParams.get('name') || ''
+  const status = url.searchParams.get('status') || ''
+  const sourceKind = url.searchParams.get('sourceKind') || ''
+
+  return mockResources.filter(r => {
+    if (ns && r.namespace !== ns) return false
+    if (name && !r.name.includes(name)) return false
+    if (status && r.status !== status) return false
+    if (sourceKind && r.sourceKind !== sourceKind) return false
+    return true
+  })
+}
+
 export const mockResources = [
   {
     namespace: 'production',
