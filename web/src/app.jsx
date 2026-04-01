@@ -12,6 +12,7 @@ import { NotFoundPage } from './components/layout/NotFoundPage'
 import { TofuControllerIcon } from './components/layout/Icons'
 import { DashboardPage } from './components/dashboards/DashboardPage'
 import { ResourceList } from './components/resources/ResourceList'
+import { ResourcePage } from './components/resources/ResourcePage'
 
 // Global signals for report data and application state
 
@@ -198,7 +199,7 @@ function AppContent() {
       <Router>
         <Route path="/" component={DashboardPage} />
         <Route path="/resources" component={ResourceList} />
-        <Route path="/resource/:namespace/:name" component={ResourcePlaceholder} />
+        <Route path="/resource/:namespace/:name" component={ResourcePage} />
         <Route default component={NotFoundPage} />
       </Router>
 
@@ -207,11 +208,3 @@ function AppContent() {
   )
 }
 
-// Placeholder components — replaced in later steps
-function ResourcePlaceholder() {
-  return (
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
-      <p class="text-gray-500 dark:text-gray-400">Resource detail coming soon...</p>
-    </main>
-  )
-}
