@@ -50,18 +50,6 @@ func notImplemented(w http.ResponseWriter, _ *http.Request) {
 	http.Error(w, "not implemented", http.StatusNotImplemented)
 }
 
-// ResourceHandler returns a single Terraform resource by namespace and name.
-// GET /api/v1/resource?namespace=...&name=...
-func (h *Handler) ResourceHandler(w http.ResponseWriter, r *http.Request) {
-	notImplemented(w, r)
-}
-
-// PlanHandler returns the decoded plan content for a Terraform resource.
-// GET /api/v1/plan?namespace=...&name=...
-func (h *Handler) PlanHandler(w http.ResponseWriter, r *http.Request) {
-	notImplemented(w, r)
-}
-
 // ActionHandler performs an action on a Terraform resource.
 // POST /api/v1/resource/action
 // Supported actions: approve, suspend, resume, force-reconcile

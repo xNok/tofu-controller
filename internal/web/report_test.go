@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	infrav1 "github.com/flux-iac/tofu-controller/api/v1alpha2"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -18,13 +20,16 @@ import (
 func newTestHandler(t *testing.T, objs ...client.Object) *Handler {
 	t.Helper()
 	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		t.Fatal(err)
+	}
 	if err := infrav1.AddToScheme(scheme); err != nil {
 		t.Fatal(err)
 	}
 	fakeClient := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(objs...).
-		WithStatusSubresource(&infrav1.Terraform{}).
+		WithStatusSubresource(&infrav1.Terraform{}, &corev1.ConfigMap{}, &corev1.Secret{}).
 		Build()
 	kc := kubeclient.New(fakeClient, fakeClient, scheme)
 	return &Handler{kubeClient: kc}
