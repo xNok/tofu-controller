@@ -1,5 +1,3 @@
-// Copyright 2024 The Flux authors. All rights reserved.
-// SPDX-License-Identifier: Apache-2.0
 
 // Auto-refresh polling interval in milliseconds
 export const POLL_INTERVAL_MS = 30000

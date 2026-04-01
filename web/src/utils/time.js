@@ -1,5 +1,3 @@
-// Copyright 2024 The Flux authors. All rights reserved.
-// SPDX-License-Identifier: Apache-2.0
 
 /**
  * Format a timestamp into a human-readable relative time string.

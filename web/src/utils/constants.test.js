@@ -1,5 +1,3 @@
-// Copyright 2024 The Flux authors. All rights reserved.
-// SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect } from 'vitest'
 import { POLL_INTERVAL_MS, FAST_POLL_INTERVAL_MS, resourceStatuses, sourceKinds } from './constants'

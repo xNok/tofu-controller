@@ -1,5 +1,3 @@
-// Copyright 2024 The Flux authors. All rights reserved.
-// SPDX-License-Identifier: Apache-2.0
 
 /**
  * Footer component - Application footer with links and license information

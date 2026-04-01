@@ -1,5 +1,3 @@
-// Copyright 2024 The Flux authors. All rights reserved.
-// SPDX-License-Identifier: Apache-2.0
 
 import { useEffect } from 'preact/hooks'
 import { signal } from '@preact/signals'
