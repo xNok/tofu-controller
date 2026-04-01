@@ -10,6 +10,7 @@ import { Header } from './components/layout/Header'
 import { Footer } from './components/layout/Footer'
 import { NotFoundPage } from './components/layout/NotFoundPage'
 import { TofuControllerIcon } from './components/layout/Icons'
+import { DashboardPage } from './components/dashboards/DashboardPage'
 
 // Global signals for report data and application state
 
@@ -194,7 +195,7 @@ function AppContent() {
       {isTabView && <TabNavigation />}
 
       <Router>
-        <Route path="/" component={DashboardPlaceholder} />
+        <Route path="/" component={DashboardPage} />
         <Route path="/resources" component={ResourcesPlaceholder} />
         <Route path="/resource/:namespace/:name" component={ResourcePlaceholder} />
         <Route default component={NotFoundPage} />
@@ -206,14 +207,6 @@ function AppContent() {
 }
 
 // Placeholder components — replaced in later steps
-function DashboardPlaceholder() {
-  return (
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
-      <p class="text-gray-500 dark:text-gray-400">Dashboard coming soon...</p>
-    </main>
-  )
-}
-
 function ResourcesPlaceholder() {
   return (
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
