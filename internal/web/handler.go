@@ -45,14 +45,3 @@ func NewHandler(kubeClient *kubeclient.Client, l logr.Logger) http.Handler {
 		GzipMiddleware(CacheControlMiddleware(MaxBodySizeMiddleware(1<<20)(mux)))))
 }
 
-// notImplemented is a temporary placeholder returning 501 for unbuilt handlers.
-func notImplemented(w http.ResponseWriter, _ *http.Request) {
-	http.Error(w, "not implemented", http.StatusNotImplemented)
-}
-
-// ActionHandler performs an action on a Terraform resource.
-// POST /api/v1/resource/action
-// Supported actions: approve, suspend, resume, force-reconcile
-func (h *Handler) ActionHandler(w http.ResponseWriter, r *http.Request) {
-	notImplemented(w, r)
-}
