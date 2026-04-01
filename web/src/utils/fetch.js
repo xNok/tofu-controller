@@ -1,0 +1,68 @@
+// Copyright 2024 The Flux authors. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+import { signal } from '@preact/signals'
+
+/**
+ * Signal to indicate a connection error
+ * Set to true when any API call fails to connect
+ */
+export const connectionError = signal(null)
+
+/**
+ * Check if mock data should be used based on environment
+ * @param {Object} env - Environment object (defaults to import.meta.env)
+ * @returns {boolean}
+ */
+export function shouldUseMockData(env = import.meta.env) {
+  return env.MODE !== 'production' && env.VITE_USE_MOCK_DATA === 'true'
+}
+
+/**
+ * Unified API fetch utility that handles mock data vs real API calls
+ *
+ * @param {Object} options - Fetch options
+ * @param {string} options.endpoint - API endpoint to call (e.g., '/api/v1/report')
+ * @param {string} options.mockPath - Path to mock data module (e.g., './mock/report')
+ * @param {string} options.mockExport - Named export from mock module (e.g., 'mockReport')
+ * @param {Object} options.env - Optional environment object for testing
+ * @param {string} options.method - HTTP method (defaults to 'GET')
+ * @param {any} options.body - Request body for POST/PUT requests (will be JSON stringified)
+ * @returns {Promise<any>} - Parsed JSON response or mock data
+ */
+export async function fetchWithMock({ endpoint, mockPath, mockExport, env, method = 'GET', body }) {
+  if (shouldUseMockData(env)) {
+    // Simulate network delay for realistic behavior
+    await new Promise(resolve => setTimeout(resolve, 300))
+    const module = await import(/* @vite-ignore */ mockPath)
+    const mockData = module[mockExport]
+
+    if (typeof mockData === 'function') {
+      return mockData(body !== undefined ? body : endpoint)
+    } else {
+      return mockData
+    }
+  } else {
+    const fetchOptions = { method }
+    if (body !== undefined) {
+      fetchOptions.headers = { 'Content-Type': 'application/json' }
+      fetchOptions.body = JSON.stringify(body)
+    }
+    const response = await fetch(endpoint, fetchOptions)
+    if (!response.ok) {
+      let err
+      try {
+        err = await response.text()
+      } catch (e) {
+        err = `Unable to read response body: ${e.message}`
+      }
+
+      if (response.status === 403) {
+        throw new Error(err)
+      }
+
+      throw new Error(`HTTP error! status: ${response.status}, error: ${err}`)
+    }
+    return await response.json()
+  }
+}
