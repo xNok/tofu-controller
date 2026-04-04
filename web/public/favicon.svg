@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- OpenTofu-inspired cube icon -->
+  <rect x="8" y="8" width="48" height="48" rx="8" fill="#7B3F9E"/>
+  <path d="M32 16L48 24V40L32 48L16 40V24L32 16Z" fill="none" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M32 16V48" stroke="white" stroke-width="2.5"/>
+  <path d="M16 24L48 24" stroke="white" stroke-width="2.5"/>
+  <path d="M16 40L32 32L48 40" stroke="white" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M32 32L16 24" stroke="white" stroke-width="2.5"/>
+  <path d="M32 32L48 24" stroke="white" stroke-width="2.5"/>
+</svg>

@@ -13,6 +13,8 @@ COPY mtls/ mtls/
 COPY runner/ runner/
 COPY tfctl/ tfctl/
 COPY utils/ utils/
+COPY web/embed.go web/embed.go
+COPY web/dist/ web/dist/
 
 ARG BUILD_SHA
 ARG BUILD_VERSION

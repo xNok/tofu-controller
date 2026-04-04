@@ -1,0 +1,19 @@
+{{- if .Values.ui.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tofu-controller.fullname" . }}-ui
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "tofu-controller.labels" . | nindent 4 }}
+spec:
+  ports:
+  - port: {{ .Values.ui.port }}
+    name: ui
+    protocol: TCP
+    targetPort: {{ .Values.ui.port }}
+  selector:
+    {{- include "tofu-controller.selectorLabels" . | nindent 4 }}
+  sessionAffinity: None
+  type: ClusterIP
+{{- end -}}
