@@ -218,3 +218,9 @@ branchPlanner:
     requests:
       cpu: 200m
       memory: 64Mi
+# Web UI
+ui:
+  # -- Enable the web UI server
+  enabled: false
+  # -- Port for the web UI server
+  port: 9080

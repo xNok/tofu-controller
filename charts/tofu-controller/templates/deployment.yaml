@@ -53,6 +53,9 @@ spec:
         - --use-pod-subdomain-resolution={{ .Values.usePodSubdomainResolution }}
         - --use-priority-queue={{ .Values.usePriorityQueue }}
         - --graceful-shutdown-timeout={{ max (int 0) (int (sub .Values.terminationGracePeriodSeconds 10)) }}s
+        {{- if .Values.ui.enabled }}
+        - --web-server-port={{ .Values.ui.port }}
+        {{- end }}
         env:
           {{- include "pod-namespace" . | indent 8 }}
         - name: RUNNER_POD_IMAGE
@@ -74,6 +77,11 @@ spec:
         - containerPort: 9440
           name: healthz
           protocol: TCP
+        {{- if .Values.ui.enabled }}
+        - containerPort: {{ .Values.ui.port }}
+          name: ui
+          protocol: TCP
+        {{- end }}
         readinessProbe:
           httpGet:
             path: /readyz
