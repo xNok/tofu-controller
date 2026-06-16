@@ -11,6 +11,7 @@ import (
 	"github.com/flux-iac/tofu-controller/api/planid"
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,9 +49,14 @@ func (r *TerraformRunnerServer) SaveTFPlan(ctx context.Context, req *SaveTFPlanR
 		return nil, err
 	}
 
-	if err := r.writePlanAsSecret(ctx, req.Name, req.Namespace, log, planId, tfPlan, "", req.Uuid); err != nil {
+	owner := planOwnerRefFromRequest(req)
+	var saved []*SavedObject
+
+	primary, err := r.writePlanAsSecret(ctx, req.Name, req.Namespace, log, planId, tfPlan, "", req.Uuid, owner)
+	if err != nil {
 		return nil, err
 	}
+	saved = append(saved, primary...)
 
 	switch r.terraform.Spec.StoreReadablePlan {
 	case "json":
@@ -72,10 +78,12 @@ func (r *TerraformRunnerServer) SaveTFPlan(ctx context.Context, req *SaveTFPlanR
 			return nil, err
 		}
 
-		if err := r.writePlanAsSecret(ctx, req.Name, req.Namespace, log, planId, jsonPlan, ".json", req.Uuid); err != nil {
+		readable, err := r.writePlanAsSecret(ctx, req.Name, req.Namespace, log, planId, jsonPlan, ".json", req.Uuid, owner)
+		if err != nil {
 			log.Error(err, "unable to write the plan to secret")
 			return nil, err
 		}
+		saved = append(saved, readable...)
 	case "human":
 		rawOutput, err := r.tfShowPlanFileRaw(ctx, TFPlanName)
 		if err != nil {
@@ -89,16 +97,37 @@ func (r *TerraformRunnerServer) SaveTFPlan(ctx context.Context, req *SaveTFPlanR
 			return nil, err
 		}
 
-		if err := r.writePlanAsConfigMap(ctx, req.Name, req.Namespace, log, planId, rawPlan, "", req.Uuid); err != nil {
+		readable, err := r.writePlanAsConfigMap(ctx, req.Name, req.Namespace, log, planId, rawPlan, "", req.Uuid, owner)
+		if err != nil {
 			log.Error(err, "unable to write the plan to configmap")
 			return nil, err
 		}
+		saved = append(saved, readable...)
 	}
 
-	return &SaveTFPlanReply{Message: "ok"}, nil
+	return &SaveTFPlanReply{Message: "ok", SavedObjects: saved}, nil
 }
 
-func (r *TerraformRunnerServer) writePlanAsSecret(ctx context.Context, name string, namespace string, log logr.Logger, planId string, tfPlan *plan.Plan, suffix string, uuid string) error {
+// planOwnerRefFromRequest builds an OwnerReference back to the parent Terraform
+// CR from the fields the controller passed in. Returns nil when the controller
+// did not supply ownership metadata (older controllers, tests).
+func planOwnerRefFromRequest(req *SaveTFPlanRequest) *metav1.OwnerReference {
+	if req.OwnerUID == "" || req.OwnerAPIVersion == "" || req.OwnerKind == "" {
+		return nil
+	}
+	controller := true
+	blockOwnerDeletion := true
+	return &metav1.OwnerReference{
+		APIVersion:         req.OwnerAPIVersion,
+		Kind:               req.OwnerKind,
+		Name:               req.Name,
+		UID:                types.UID(req.OwnerUID),
+		Controller:         &controller,
+		BlockOwnerDeletion: &blockOwnerDeletion,
+	}
+}
+
+func (r *TerraformRunnerServer) writePlanAsSecret(ctx context.Context, name string, namespace string, log logr.Logger, planId string, tfPlan *plan.Plan, suffix string, uuid string, owner *metav1.OwnerReference) ([]*SavedObject, error) {
 	existingSecrets := &v1.SecretList{}
 
 	// Try to get any secrets by using the plan labels
@@ -108,7 +137,7 @@ func (r *TerraformRunnerServer) writePlanAsSecret(ctx context.Context, name stri
 		plan.TFPlanWorkspaceLabel: plan.SafeLabelValue(r.terraform.WorkspaceName()),
 	}); err != nil {
 		log.Error(err, "unable to list existing plan secrets")
-		return err
+		return nil, err
 	}
 
 	// Check for a legacy secret if none found with the
@@ -125,31 +154,38 @@ func (r *TerraformRunnerServer) writePlanAsSecret(ctx context.Context, name stri
 	for _, s := range existingSecrets.Items {
 		if err := r.Delete(ctx, &s); err != nil {
 			log.Error(err, "unable to delete existing plan secret", "secretName", s.Name)
-			return err
+			return nil, err
 		}
 	}
 
 	secrets, err := tfPlan.ToSecret(suffix)
 	if err != nil {
 		log.Error(err, "unable to generate plan secrets", "planId", planId)
-		return err
+		return nil, err
 	}
 
-	// We shouldn't have to check whether any of these already exist, as we've done
-	// that above
+	saved := make([]*SavedObject, 0, len(secrets))
 	for _, secret := range secrets {
-		// now create the seecret
+		if owner != nil {
+			secret.OwnerReferences = append(secret.OwnerReferences, *owner)
+		}
 		if err := r.Create(ctx, secret); err != nil {
 			err = fmt.Errorf("error recording plan status: %s", err)
 			log.Error(err, "unable to create plan secret")
-			return err
+			return nil, err
 		}
+		saved = append(saved, &SavedObject{
+			ApiVersion: "v1",
+			Kind:       "Secret",
+			Namespace:  secret.Namespace,
+			Name:       secret.Name,
+		})
 	}
 
-	return nil
+	return saved, nil
 }
 
-func (r *TerraformRunnerServer) writePlanAsConfigMap(ctx context.Context, name string, namespace string, log logr.Logger, planId string, tfPlan *plan.Plan, suffix string, uuid string) error {
+func (r *TerraformRunnerServer) writePlanAsConfigMap(ctx context.Context, name string, namespace string, log logr.Logger, planId string, tfPlan *plan.Plan, suffix string, uuid string, owner *metav1.OwnerReference) ([]*SavedObject, error) {
 	existingConfigMaps := &v1.ConfigMapList{}
 
 	// Try to get any ConfigMaps by using the plan labels
@@ -159,7 +195,7 @@ func (r *TerraformRunnerServer) writePlanAsConfigMap(ctx context.Context, name s
 		plan.TFPlanWorkspaceLabel: plan.SafeLabelValue(r.terraform.WorkspaceName()),
 	}); err != nil {
 		log.Error(err, "unable to list existing plan ConfigMaps")
-		return err
+		return nil, err
 	}
 
 	// Check for a legacy configmap if none found with the
@@ -176,26 +212,33 @@ func (r *TerraformRunnerServer) writePlanAsConfigMap(ctx context.Context, name s
 	for _, s := range existingConfigMaps.Items {
 		if err := r.Delete(ctx, &s); err != nil {
 			log.Error(err, "unable to delete existing plan ConfigMap", "configMapName", s.Name)
-			return err
+			return nil, err
 		}
 	}
 
 	configMaps, err := tfPlan.ToConfigMap(suffix)
 	if err != nil {
 		log.Error(err, "unable to generate plan ConfigMaps", "planId", planId)
-		return err
+		return nil, err
 	}
 
-	// We shouldn't have to check whether any of these already exist, as we've done
-	// that above
+	saved := make([]*SavedObject, 0, len(configMaps))
 	for _, configmap := range configMaps {
-		// now create the configmap
+		if owner != nil {
+			configmap.OwnerReferences = append(configmap.OwnerReferences, *owner)
+		}
 		if err := r.Create(ctx, configmap); err != nil {
 			err = fmt.Errorf("error recording plan status: %s", err)
 			log.Error(err, "unable to create plan ConfigMap")
-			return err
+			return nil, err
 		}
+		saved = append(saved, &SavedObject{
+			ApiVersion: "v1",
+			Kind:       "ConfigMap",
+			Namespace:  configmap.Namespace,
+			Name:       configmap.Name,
+		})
 	}
 
-	return nil
+	return saved, nil
 }
