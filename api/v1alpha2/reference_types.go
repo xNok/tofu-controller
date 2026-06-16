@@ -38,6 +38,46 @@ func (s *CrossNamespaceSourceReference) String() string {
 	return fmt.Sprintf("%s/%s", s.Kind, s.Name)
 }
 
+// TypedObjectReference identifies a Kubernetes object by APIVersion, Kind, and
+// name, optionally in a different namespace from the referrer. It is intended
+// for status fields that point at runtime artifacts whose Kind is not fixed at
+// API definition time (Secret vs ConfigMap) so that external tooling can
+// resolve the artifact with a single client.Get rather than reconstructing
+// names from internal conventions.
+type TypedObjectReference struct {
+	// APIVersion of the referent (e.g. "v1").
+	// +kubebuilder:validation:MinLength=1
+	// +required
+	APIVersion string `json:"apiVersion"`
+
+	// Kind of the referent (e.g. "Secret", "ConfigMap").
+	// +kubebuilder:validation:MinLength=1
+	// +required
+	Kind string `json:"kind"`
+
+	// Name of the referent.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	// +required
+	Name string `json:"name"`
+
+	// Namespace of the referent. When empty, the referent is assumed to live
+	// in the same namespace as the resource carrying this reference.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
+}
+
+func (r *TypedObjectReference) String() string {
+	gvk := r.Kind
+	if r.APIVersion != "" {
+		gvk = r.APIVersion + "/" + r.Kind
+	}
+	if r.Namespace != "" {
+		return fmt.Sprintf("%s/%s/%s", gvk, r.Namespace, r.Name)
+	}
+	return fmt.Sprintf("%s/%s", gvk, r.Name)
+}
+
 type FileMapping struct {
 	// Reference to a Secret that contains the file content
 	SecretRef meta.SecretKeyReference `json:"secretRef"`
