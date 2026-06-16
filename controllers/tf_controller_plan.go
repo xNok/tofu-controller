@@ -129,6 +129,9 @@ func (r *TerraformReconciler) plan(ctx context.Context, patchHelper *patch.Seria
 		Namespace:                terraform.Namespace,
 		Uuid:                     string(terraform.GetUID()),
 		Revision:                 revision,
+		OwnerUID:                 string(terraform.GetUID()),
+		OwnerAPIVersion:          infrav1.GroupVersion.String(),
+		OwnerKind:                infrav1.TerraformKind,
 	})
 	if err != nil {
 		err = fmt.Errorf("error saving plan secret: %s", err)
@@ -152,9 +155,45 @@ func (r *TerraformReconciler) plan(ctx context.Context, patchHelper *patch.Seria
 			r.Eventf(terraform, corev1.EventTypeNormal, infrav1.TFExecPlanSucceedReason, "%s", msg)
 		}
 		terraform = infrav1.TerraformPlannedWithChanges(terraform, revision, forceOrAutoApply, "Plan generated")
+		setPlanArtifactRef(terraform, saveTFPlanReply.SavedObjects, planid.GetPlanID(revision))
 	} else {
 		terraform = infrav1.TerraformPlannedNoChanges(terraform, revision, "Plan no changes")
+		clearPlanArtifactRef(terraform)
 	}
 
 	return terraform, nil
+}
+
+// setPlanArtifactRef writes a typed Plan artifact reference into status from
+// the SavedObjects returned by the runner. The first saved object is treated
+// as the primary (chunk-0) and Chunks reflects the total count.
+func setPlanArtifactRef(terraform *infrav1.Terraform, saved []*runner.SavedObject, planID string) {
+	if len(saved) == 0 {
+		clearPlanArtifactRef(terraform)
+		return
+	}
+	primary := saved[0]
+	if terraform.Status.ArtifactRefs == nil {
+		terraform.Status.ArtifactRefs = &infrav1.ArtifactReferences{}
+	}
+	terraform.Status.ArtifactRefs.Plan = &infrav1.PlanArtifactRef{
+		Ref: infrav1.TypedObjectReference{
+			APIVersion: primary.ApiVersion,
+			Kind:       primary.Kind,
+			Namespace:  primary.Namespace,
+			Name:       primary.Name,
+		},
+		PlanID: planID,
+		Chunks: int32(len(saved)),
+	}
+}
+
+// clearPlanArtifactRef removes any Plan artifact reference; callers use this
+// when no plan is currently persisted (no-changes plan, destroy with empty
+// diff).
+func clearPlanArtifactRef(terraform *infrav1.Terraform) {
+	if terraform.Status.ArtifactRefs == nil {
+		return
+	}
+	terraform.Status.ArtifactRefs.Plan = nil
 }
