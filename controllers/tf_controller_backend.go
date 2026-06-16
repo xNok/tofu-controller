@@ -25,6 +25,138 @@ func (r *TerraformReconciler) backendCompletelyDisable(terraform *infrav1.Terraf
 	return terraform.Spec.BackendConfig != nil && terraform.Spec.BackendConfig.Disable
 }
 
+// setStateArtifactRef populates Status.ArtifactRefs.State based on the
+// resolved backend for this Terraform. The logic mirrors the branches in
+// setupTerraform that render the backend HCL, so external tooling can resolve
+// the in-cluster state Secret (Kubernetes backend) directly from status.
+//
+// disableK8sBackend mirrors the DISABLE_TF_K8S_BACKEND=1 envvar consumed by
+// setupTerraform; it is passed in explicitly to keep this function pure.
+func setStateArtifactRef(terraform *infrav1.Terraform, disableK8sBackend bool) {
+	if terraform.Status.ArtifactRefs == nil {
+		terraform.Status.ArtifactRefs = &infrav1.ArtifactReferences{}
+	}
+
+	switch {
+	case terraform.Spec.Cloud != nil:
+		hint := ""
+		if terraform.Spec.Cloud.Organization != "" {
+			hint = "cloud://" + terraform.Spec.Cloud.Organization
+			if ws := terraform.Spec.Cloud.Workspaces; ws != nil && ws.Name != "" {
+				hint += "/" + ws.Name
+			}
+		}
+		terraform.Status.ArtifactRefs.State = &infrav1.StateArtifactRef{
+			Backend:          "cloud",
+			ExternalLocation: hint,
+		}
+	case terraform.Spec.BackendConfig != nil && terraform.Spec.BackendConfig.Disable:
+		// State is intentionally not persisted; surface backend type only.
+		terraform.Status.ArtifactRefs.State = &infrav1.StateArtifactRef{
+			Backend: "disabled",
+		}
+	case terraform.Spec.BackendConfig != nil && terraform.Spec.BackendConfig.CustomConfiguration != "":
+		terraform.Status.ArtifactRefs.State = &infrav1.StateArtifactRef{
+			Backend:          parseBackendType(terraform.Spec.BackendConfig.CustomConfiguration),
+			ExternalLocation: parseBackendExternalLocation(terraform.Spec.BackendConfig.CustomConfiguration),
+		}
+	case terraform.Spec.BackendConfig != nil:
+		suffix := terraform.Spec.BackendConfig.SecretSuffix
+		if suffix == "" {
+			suffix = terraform.Name
+		}
+		terraform.Status.ArtifactRefs.State = kubernetesStateRef(terraform, suffix)
+	case disableK8sBackend:
+		terraform.Status.ArtifactRefs.State = &infrav1.StateArtifactRef{Backend: "local"}
+	default:
+		terraform.Status.ArtifactRefs.State = kubernetesStateRef(terraform, terraform.Name)
+	}
+}
+
+func kubernetesStateRef(terraform *infrav1.Terraform, secretSuffix string) *infrav1.StateArtifactRef {
+	return &infrav1.StateArtifactRef{
+		Backend: "kubernetes",
+		Ref: &infrav1.TypedObjectReference{
+			APIVersion: "v1",
+			Kind:       "Secret",
+			Namespace:  terraform.Namespace,
+			Name:       fmt.Sprintf("tfstate-%s-%s", terraform.WorkspaceName(), secretSuffix),
+		},
+	}
+}
+
+// parseBackendType extracts the backend type label from a backend HCL block,
+// e.g. `backend "s3" { ... }` -> "s3". Returns "unknown" when the type cannot
+// be determined; the controller never errors on this best-effort hint.
+func parseBackendType(hcl string) string {
+	idx := strings.Index(hcl, `backend "`)
+	if idx < 0 {
+		return "unknown"
+	}
+	rest := hcl[idx+len(`backend "`):]
+	end := strings.IndexByte(rest, '"')
+	if end <= 0 {
+		return "unknown"
+	}
+	return rest[:end]
+}
+
+// parseBackendExternalLocation produces a free-form hint for well-known
+// backends in custom HCL. It never panics and returns "" when no recognisable
+// hint is present — callers must treat the result as advisory only.
+func parseBackendExternalLocation(hcl string) string {
+	switch parseBackendType(hcl) {
+	case "s3":
+		bucket := extractHCLString(hcl, "bucket")
+		key := extractHCLString(hcl, "key")
+		if bucket == "" {
+			return ""
+		}
+		if key != "" {
+			return fmt.Sprintf("s3://%s/%s", bucket, key)
+		}
+		return "s3://" + bucket
+	case "gcs":
+		bucket := extractHCLString(hcl, "bucket")
+		prefix := extractHCLString(hcl, "prefix")
+		if bucket == "" {
+			return ""
+		}
+		if prefix != "" {
+			return fmt.Sprintf("gs://%s/%s", bucket, prefix)
+		}
+		return "gs://" + bucket
+	case "http", "remote":
+		return extractHCLString(hcl, "address")
+	}
+	return ""
+}
+
+// extractHCLString returns the value of `<key> = "<value>"` from an HCL
+// snippet. Returns "" when the key is absent or the value is not a quoted
+// literal — callers must tolerate that.
+func extractHCLString(hcl, key string) string {
+	idx := strings.Index(hcl, key)
+	if idx < 0 {
+		return ""
+	}
+	rest := hcl[idx+len(key):]
+	eq := strings.IndexByte(rest, '=')
+	if eq < 0 {
+		return ""
+	}
+	rest = strings.TrimLeft(rest[eq+1:], " \t")
+	if !strings.HasPrefix(rest, `"`) {
+		return ""
+	}
+	rest = rest[1:]
+	end := strings.IndexByte(rest, '"')
+	if end <= 0 {
+		return ""
+	}
+	return rest[:end]
+}
+
 func (r *TerraformReconciler) setupTerraform(ctx context.Context, patchHelper *patch.SerialPatcher, runnerClient runner.RunnerClient, terraform *infrav1.Terraform, sourceObj sourcev1.Source, revision string, reconciliationLoopID string) (*infrav1.Terraform, string, string, error) {
 	log := ctrl.LoggerFrom(ctx)
 
@@ -156,6 +288,8 @@ terraform {
 		}
 		log.Info(fmt.Sprintf("write backend config: %s", writeBackendConfigReply.Message))
 	}
+
+	setStateArtifactRef(terraform, DisableTFK8SBackend)
 
 	var tfrcFilepath string
 	if terraform.Spec.CliConfigSecretRef != nil {
