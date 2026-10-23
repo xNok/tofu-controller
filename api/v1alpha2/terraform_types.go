@@ -367,9 +367,20 @@ func (w Webhook) IsEnabled() bool {
 }
 
 type PlanStatus struct {
+	// LastApplied is the short identifier of the most recently applied plan.
+	//
+	// Deprecated: prefer Status.ArtifactRefs.Plan together with
+	// Status.LastAppliedRevision. This field is retained for compatibility
+	// with v1alpha2 consumers and is scheduled for removal in v1beta1.
 	// +optional
 	LastApplied string `json:"lastApplied,omitempty"`
 
+	// Pending is the short identifier of the currently pending plan.
+	//
+	// Deprecated: prefer Status.ArtifactRefs.Plan.PlanID, which is paired
+	// with a typed object reference to the plan Secret or ConfigMap. This
+	// field is retained for compatibility with v1alpha2 consumers and is
+	// scheduled for removal in v1beta1.
 	// +optional
 	Pending string `json:"pending,omitempty"`
 
@@ -378,6 +389,85 @@ type PlanStatus struct {
 
 	// +optional
 	IsDriftDetectionPlan bool `json:"isDriftDetectionPlan,omitempty"`
+}
+
+// ArtifactReferences groups the runtime artifact references that the
+// controller publishes after a successful plan / apply / output cycle.
+// External tooling should prefer these typed references over reconstructing
+// names from internal conventions or scanning labels.
+//
+// This mirrors the way Flux controllers publish what they produced in their
+// own status: source-controller exposes status.artifact (meta.Artifact) on
+// GitRepository, OCIRepository, Bucket, HelmChart and ExternalArtifact, and
+// kustomize-controller records the objects it applied in
+// Kustomization.status.inventory. The individual references use
+// meta.NamespacedObjectKindReference, the same type Flux uses for
+// Kustomization.spec.healthChecks and ExternalArtifact.spec.sourceRef.
+type ArtifactReferences struct {
+	// Plan points at the Secret holding the most recently saved plan.
+	// Nil before the first successful plan or when no plan is currently
+	// persisted. The readable copies written for spec.storeReadablePlan
+	// are a separate artifact and are not referenced here.
+	// +optional
+	Plan *PlanArtifactRef `json:"plan,omitempty"`
+
+	// State points at the state Secret when the Kubernetes backend is in
+	// use. When an external backend (S3/GCS/HTTP/...) is configured, Ref is
+	// nil and ExternalLocation carries a best-effort hint.
+	// +optional
+	State *StateArtifactRef `json:"state,omitempty"`
+
+	// Outputs points at the Secret named by spec.writeOutputsToSecret once
+	// it has actually been written by the controller. Nil if outputs are
+	// not configured, not yet written, or destroyed.
+	// +optional
+	Outputs *meta.NamespacedObjectKindReference `json:"outputs,omitempty"`
+}
+
+// PlanArtifactRef pairs a strongly typed object reference with the
+// pending plan ID so callers do not need to correlate via labels.
+type PlanArtifactRef struct {
+	// Ref is the Secret holding the gzipped plan body. When the plan is
+	// chunked across multiple Secrets, Ref points at the chunk-0 object;
+	// siblings can be located via the infra.contrib.fluxcd.io/plan-name
+	// and plan-workspace labels or by listing objects with the same
+	// ownerReference.
+	// +required
+	Ref meta.NamespacedObjectKindReference `json:"ref"`
+
+	// PlanID mirrors Status.Plan.Pending. Duplicated here so a single
+	// status read fully identifies the artifact.
+	// +optional
+	PlanID string `json:"planID,omitempty"`
+
+	// Chunks is the number of Secrets the gzipped plan is spread across
+	// (>= 1).
+	// +optional
+	Chunks int32 `json:"chunks,omitempty"`
+}
+
+// StateArtifactRef is either a reference to the in-cluster state Secret
+// (Kubernetes backend) or an external location hint (every other backend).
+// Exactly one of Ref / ExternalLocation should be set; Backend is always
+// populated.
+type StateArtifactRef struct {
+	// Backend identifies which Terraform backend produced this state,
+	// e.g. "kubernetes", "s3", "gcs", "http", "remote".
+	// +kubebuilder:validation:MinLength=1
+	// +required
+	Backend string `json:"backend"`
+
+	// Ref is set only when Backend == "kubernetes". It points at the
+	// tfstate-{workspace}-{secretSuffix} Secret in the Terraform's
+	// namespace.
+	// +optional
+	Ref *meta.NamespacedObjectKindReference `json:"ref,omitempty"`
+
+	// ExternalLocation is a free-form, human-readable hint for non-
+	// Kubernetes backends, e.g. "s3://my-bucket/path/to/state". It is not
+	// parsed by the controller and exists solely for tooling.
+	// +optional
+	ExternalLocation string `json:"externalLocation,omitempty"`
 }
 
 // TerraformStatus defines the observed state of Terraform
@@ -440,6 +530,13 @@ type TerraformStatus struct {
 	// +optional
 	Inventory *ResourceInventory `json:"inventory,omitempty"`
 
+	// ArtifactRefs surfaces the Kubernetes objects this Terraform manages
+	// as runtime artifacts (plan, state, outputs). External tooling should
+	// prefer these references over the deprecated string fields and over
+	// label scans.
+	// +optional
+	ArtifactRefs *ArtifactReferences `json:"artifactRefs,omitempty"`
+
 	// +optional
 	Lock LockStatus `json:"lock,omitempty"`
 
@@ -466,6 +563,8 @@ type LockStatus struct {
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description=""
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].message",description=""
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
+// +kubebuilder:printcolumn:name="Plan",type="string",JSONPath=".status.artifactRefs.plan.ref.name",priority=1,description="Name of the Secret or ConfigMap holding the pending plan"
+// +kubebuilder:printcolumn:name="State",type="string",JSONPath=".status.artifactRefs.state.ref.name",priority=1,description="Name of the tfstate Secret when using the Kubernetes backend"
 
 // Terraform is the Schema for the terraforms API
 type Terraform struct {

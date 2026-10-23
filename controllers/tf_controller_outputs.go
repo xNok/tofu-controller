@@ -9,6 +9,7 @@ import (
 	"github.com/flux-iac/tofu-controller/api/typeinfo"
 	infrav1 "github.com/flux-iac/tofu-controller/api/v1alpha2"
 	"github.com/flux-iac/tofu-controller/runner"
+	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/runtime/patch"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/zclconf/go-cty/cty"
@@ -169,6 +170,7 @@ func (r *TerraformReconciler) writeOutput(ctx context.Context, terraform *infrav
 	}
 
 	if len(data) == 0 || terraform.Spec.Destroy {
+		clearOutputsArtifactRef(terraform)
 		return infrav1.TerraformOutputsWritten(terraform, revision, "No Outputs written"), nil
 	}
 
@@ -191,6 +193,8 @@ func (r *TerraformReconciler) writeOutput(ctx context.Context, terraform *infrav
 	}
 	log.Info(fmt.Sprintf("write outputs: %s, changed: %v", writeOutputsReply.Message, writeOutputsReply.Changed))
 
+	setOutputsArtifactRef(terraform, wots.Name)
+
 	if writeOutputsReply.Changed {
 		keysWritten := []string{}
 		for k := range data {
@@ -201,6 +205,31 @@ func (r *TerraformReconciler) writeOutput(ctx context.Context, terraform *infrav
 	}
 
 	return infrav1.TerraformOutputsWritten(terraform, revision, "Outputs written"), nil
+}
+
+// setOutputsArtifactRef publishes the typed reference to the outputs Secret
+// after a successful WriteOutputs RPC. The Secret is always in the Terraform's
+// own namespace because spec.writeOutputsToSecret.name is a same-namespace
+// reference.
+func setOutputsArtifactRef(terraform *infrav1.Terraform, secretName string) {
+	if terraform.Status.ArtifactRefs == nil {
+		terraform.Status.ArtifactRefs = &infrav1.ArtifactReferences{}
+	}
+	terraform.Status.ArtifactRefs.Outputs = &meta.NamespacedObjectKindReference{
+		APIVersion: "v1",
+		Kind:       "Secret",
+		Namespace:  terraform.Namespace,
+		Name:       secretName,
+	}
+}
+
+// clearOutputsArtifactRef removes any Outputs ref; used on destroy or when
+// no outputs are produced.
+func clearOutputsArtifactRef(terraform *infrav1.Terraform) {
+	if terraform.Status.ArtifactRefs == nil {
+		return
+	}
+	terraform.Status.ArtifactRefs.Outputs = nil
 }
 
 func filterOutputs(outputs map[string]tfexec.OutputMeta, outputsToWrite []string) (map[string]tfexec.OutputMeta, error) {

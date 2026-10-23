@@ -5542,6 +5542,16 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - description: Name of the Secret or ConfigMap holding the pending plan
+      jsonPath: .status.artifactRefs.plan.ref.name
+      name: Plan
+      priority: 1
+      type: string
+    - description: Name of the tfstate Secret when using the Kubernetes backend
+      jsonPath: .status.artifactRefs.state.ref.name
+      name: State
+      priority: 1
+      type: string
     name: v1alpha2
     schema:
       openAPIV3Schema:
@@ -11262,6 +11272,130 @@ spec:
               observedGeneration: -1
             description: TerraformStatus defines the observed state of Terraform
             properties:
+              artifactRefs:
+                description: |-
+                  ArtifactRefs surfaces the Kubernetes objects this Terraform manages
+                  as runtime artifacts (plan, state, outputs). External tooling should
+                  prefer these references over the deprecated string fields and over
+                  label scans.
+                properties:
+                  outputs:
+                    description: |-
+                      Outputs points at the Secret named by spec.writeOutputsToSecret once
+                      it has actually been written by the controller. Nil if outputs are
+                      not configured, not yet written, or destroyed.
+                    properties:
+                      apiVersion:
+                        description: API version of the referent, if not specified
+                          the Kubernetes preferred version will be used.
+                        type: string
+                      kind:
+                        description: Kind of the referent.
+                        type: string
+                      name:
+                        description: Name of the referent.
+                        type: string
+                      namespace:
+                        description: Namespace of the referent, when not specified
+                          it acts as LocalObjectReference.
+                        type: string
+                    required:
+                    - kind
+                    - name
+                    type: object
+                  plan:
+                    description: |-
+                      Plan points at the Secret holding the most recently saved plan.
+                      Nil before the first successful plan or when no plan is currently
+                      persisted. The readable copies written for spec.storeReadablePlan
+                      are a separate artifact and are not referenced here.
+                    properties:
+                      chunks:
+                        description: |-
+                          Chunks is the number of Secrets the gzipped plan is spread across
+                          (>= 1).
+                        format: int32
+                        type: integer
+                      planID:
+                        description: |-
+                          PlanID mirrors Status.Plan.Pending. Duplicated here so a single
+                          status read fully identifies the artifact.
+                        type: string
+                      ref:
+                        description: |-
+                          Ref is the Secret holding the gzipped plan body. When the plan is
+                          chunked across multiple Secrets, Ref points at the chunk-0 object;
+                          siblings can be located via the infra.contrib.fluxcd.io/plan-name
+                          and plan-workspace labels or by listing objects with the same
+                          ownerReference.
+                        properties:
+                          apiVersion:
+                            description: API version of the referent, if not specified
+                              the Kubernetes preferred version will be used.
+                            type: string
+                          kind:
+                            description: Kind of the referent.
+                            type: string
+                          name:
+                            description: Name of the referent.
+                            type: string
+                          namespace:
+                            description: Namespace of the referent, when not specified
+                              it acts as LocalObjectReference.
+                            type: string
+                        required:
+                        - kind
+                        - name
+                        type: object
+                    required:
+                    - ref
+                    type: object
+                  state:
+                    description: |-
+                      State points at the state Secret when the Kubernetes backend is in
+                      use. When an external backend (S3/GCS/HTTP/...) is configured, Ref is
+                      nil and ExternalLocation carries a best-effort hint.
+                    properties:
+                      backend:
+                        description: |-
+                          Backend identifies which Terraform backend produced this state,
+                          e.g. "kubernetes", "s3", "gcs", "http", "remote".
+                        minLength: 1
+                        type: string
+                      externalLocation:
+                        description: |-
+                          ExternalLocation is a free-form, human-readable hint for non-
+                          Kubernetes backends, e.g. "s3://my-bucket/path/to/state". It is not
+                          parsed by the controller and exists solely for tooling.
+                        type: string
+                      ref:
+                        description: |-
+                          Ref is set only when Backend == "kubernetes". It points at the
+                          tfstate-{workspace}-{secretSuffix} Secret in the Terraform's
+                          namespace.
+                        properties:
+                          apiVersion:
+                            description: API version of the referent, if not specified
+                              the Kubernetes preferred version will be used.
+                            type: string
+                          kind:
+                            description: Kind of the referent.
+                            type: string
+                          name:
+                            description: Name of the referent.
+                            type: string
+                          namespace:
+                            description: Namespace of the referent, when not specified
+                              it acts as LocalObjectReference.
+                            type: string
+                        required:
+                        - kind
+                        - name
+                        type: object
+                    required:
+                    - backend
+                    type: object
+                type: object
               availableOutputs:
                 items:
                   type: string
@@ -11423,8 +11557,21 @@ spec:
                   isDriftDetectionPlan:
                     type: boolean
                   lastApplied:
+                    description: |-
+                      LastApplied is the short identifier of the most recently applied plan.
+
+                      Deprecated: prefer Status.ArtifactRefs.Plan together with
+                      Status.LastAppliedRevision. This field is retained for compatibility
+                      with v1alpha2 consumers and is scheduled for removal in v1beta1.
                     type: string
                   pending:
+                    description: |-
+                      Pending is the short identifier of the currently pending plan.
+
+                      Deprecated: prefer Status.ArtifactRefs.Plan.PlanID, which is paired
+                      with a typed object reference to the plan Secret or ConfigMap. This
+                      field is retained for compatibility with v1alpha2 consumers and is
+                      scheduled for removal in v1beta1.
                     type: string
                 type: object
               reconciliationFailures:
