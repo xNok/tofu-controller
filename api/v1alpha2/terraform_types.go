@@ -395,11 +395,19 @@ type PlanStatus struct {
 // controller publishes after a successful plan / apply / output cycle.
 // External tooling should prefer these typed references over reconstructing
 // names from internal conventions or scanning labels.
+//
+// This mirrors the way Flux controllers publish what they produced in their
+// own status: source-controller exposes status.artifact (meta.Artifact) on
+// GitRepository, OCIRepository, Bucket, HelmChart and ExternalArtifact, and
+// kustomize-controller records the objects it applied in
+// Kustomization.status.inventory. The individual references use
+// meta.NamespacedObjectKindReference, the same type Flux uses for
+// Kustomization.spec.healthChecks and ExternalArtifact.spec.sourceRef.
 type ArtifactReferences struct {
-	// Plan points at the most recently saved plan object (Secret for gzip
-	// plans and JSON readable plans, ConfigMap for human-readable plans).
+	// Plan points at the Secret holding the most recently saved plan.
 	// Nil before the first successful plan or when no plan is currently
-	// persisted.
+	// persisted. The readable copies written for spec.storeReadablePlan
+	// are a separate artifact and are not referenced here.
 	// +optional
 	Plan *PlanArtifactRef `json:"plan,omitempty"`
 
@@ -413,26 +421,27 @@ type ArtifactReferences struct {
 	// it has actually been written by the controller. Nil if outputs are
 	// not configured, not yet written, or destroyed.
 	// +optional
-	Outputs *TypedObjectReference `json:"outputs,omitempty"`
+	Outputs *meta.NamespacedObjectKindReference `json:"outputs,omitempty"`
 }
 
 // PlanArtifactRef pairs a strongly typed object reference with the
 // pending plan ID so callers do not need to correlate via labels.
 type PlanArtifactRef struct {
-	// Ref is the Secret or ConfigMap holding the gzipped (or readable)
-	// plan body. When the plan is chunked across multiple objects, Ref
-	// points at the chunk-0 object; siblings can be located via the
-	// infra.contrib.fluxcd.io/plan-name and plan-workspace labels or by
-	// listing objects with the same ownerReference.
+	// Ref is the Secret holding the gzipped plan body. When the plan is
+	// chunked across multiple Secrets, Ref points at the chunk-0 object;
+	// siblings can be located via the infra.contrib.fluxcd.io/plan-name
+	// and plan-workspace labels or by listing objects with the same
+	// ownerReference.
 	// +required
-	Ref TypedObjectReference `json:"ref"`
+	Ref meta.NamespacedObjectKindReference `json:"ref"`
 
 	// PlanID mirrors Status.Plan.Pending. Duplicated here so a single
 	// status read fully identifies the artifact.
 	// +optional
 	PlanID string `json:"planID,omitempty"`
 
-	// Chunks is the number of objects the plan is spread across (>= 1).
+	// Chunks is the number of Secrets the gzipped plan is spread across
+	// (>= 1).
 	// +optional
 	Chunks int32 `json:"chunks,omitempty"`
 }
@@ -449,9 +458,10 @@ type StateArtifactRef struct {
 	Backend string `json:"backend"`
 
 	// Ref is set only when Backend == "kubernetes". It points at the
-	// tfstate-{secretSuffix} Secret in the Terraform's namespace.
+	// tfstate-{workspace}-{secretSuffix} Secret in the Terraform's
+	// namespace.
 	// +optional
-	Ref *TypedObjectReference `json:"ref,omitempty"`
+	Ref *meta.NamespacedObjectKindReference `json:"ref,omitempty"`
 
 	// ExternalLocation is a free-form, human-readable hint for non-
 	// Kubernetes backends, e.g. "s3://my-bucket/path/to/state". It is not

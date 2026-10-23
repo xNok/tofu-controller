@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	infrav1 "github.com/flux-iac/tofu-controller/api/v1alpha2"
 	"github.com/flux-iac/tofu-controller/runner"
+	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/runtime/acl"
 	"github.com/fluxcd/pkg/runtime/patch"
 	sourcev1 "github.com/fluxcd/source-controller/api/v1"
@@ -61,11 +63,10 @@ func setStateArtifactRef(terraform *infrav1.Terraform, disableK8sBackend bool) {
 			ExternalLocation: parseBackendExternalLocation(terraform.Spec.BackendConfig.CustomConfiguration),
 		}
 	case terraform.Spec.BackendConfig != nil:
-		suffix := terraform.Spec.BackendConfig.SecretSuffix
-		if suffix == "" {
-			suffix = terraform.Name
-		}
-		terraform.Status.ArtifactRefs.State = kubernetesStateRef(terraform, suffix)
+		// setupTerraform renders secret_suffix from spec.backendConfig
+		// verbatim, including when it is empty, so the reference must not
+		// substitute a default the backend will not use.
+		terraform.Status.ArtifactRefs.State = kubernetesStateRef(terraform, terraform.Spec.BackendConfig.SecretSuffix)
 	case disableK8sBackend:
 		terraform.Status.ArtifactRefs.State = &infrav1.StateArtifactRef{Backend: "local"}
 	default:
@@ -76,7 +77,7 @@ func setStateArtifactRef(terraform *infrav1.Terraform, disableK8sBackend bool) {
 func kubernetesStateRef(terraform *infrav1.Terraform, secretSuffix string) *infrav1.StateArtifactRef {
 	return &infrav1.StateArtifactRef{
 		Backend: "kubernetes",
-		Ref: &infrav1.TypedObjectReference{
+		Ref: &meta.NamespacedObjectKindReference{
 			APIVersion: "v1",
 			Kind:       "Secret",
 			Namespace:  terraform.Namespace,
@@ -135,26 +136,21 @@ func parseBackendExternalLocation(hcl string) string {
 // extractHCLString returns the value of `<key> = "<value>"` from an HCL
 // snippet. Returns "" when the key is absent or the value is not a quoted
 // literal — callers must tolerate that.
+//
+// The key must appear as a whole attribute name, so looking up "bucket" does
+// not match `bucket_prefix = "..."`.
 func extractHCLString(hcl, key string) string {
-	idx := strings.Index(hcl, key)
-	if idx < 0 {
+	re, err := regexp.Compile(`(?:^|[\s{])` + regexp.QuoteMeta(key) + `\s*=\s*"([^"]*)"`)
+	if err != nil {
 		return ""
 	}
-	rest := hcl[idx+len(key):]
-	eq := strings.IndexByte(rest, '=')
-	if eq < 0 {
+
+	match := re.FindStringSubmatch(hcl)
+	if match == nil {
 		return ""
 	}
-	rest = strings.TrimLeft(rest[eq+1:], " \t")
-	if !strings.HasPrefix(rest, `"`) {
-		return ""
-	}
-	rest = rest[1:]
-	end := strings.IndexByte(rest, '"')
-	if end <= 0 {
-		return ""
-	}
-	return rest[:end]
+
+	return match[1]
 }
 
 func (r *TerraformReconciler) setupTerraform(ctx context.Context, patchHelper *patch.SerialPatcher, runnerClient runner.RunnerClient, terraform *infrav1.Terraform, sourceObj sourcev1.Source, revision string, reconciliationLoopID string) (*infrav1.Terraform, string, string, error) {

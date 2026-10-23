@@ -9,6 +9,7 @@ import (
 	"github.com/flux-iac/tofu-controller/api/typeinfo"
 	infrav1 "github.com/flux-iac/tofu-controller/api/v1alpha2"
 	"github.com/flux-iac/tofu-controller/runner"
+	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/runtime/patch"
 	"github.com/hashicorp/terraform-exec/tfexec"
 	"github.com/zclconf/go-cty/cty"
@@ -214,7 +215,7 @@ func setOutputsArtifactRef(terraform *infrav1.Terraform, secretName string) {
 	if terraform.Status.ArtifactRefs == nil {
 		terraform.Status.ArtifactRefs = &infrav1.ArtifactReferences{}
 	}
-	terraform.Status.ArtifactRefs.Outputs = &infrav1.TypedObjectReference{
+	terraform.Status.ArtifactRefs.Outputs = &meta.NamespacedObjectKindReference{
 		APIVersion: "v1",
 		Kind:       "Secret",
 		Namespace:  terraform.Namespace,

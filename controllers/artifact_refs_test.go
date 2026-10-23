@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/flux-iac/tofu-controller/runner"
+	"github.com/fluxcd/pkg/apis/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	. "github.com/onsi/gomega"
@@ -52,15 +53,24 @@ func TestSetPlanArtifactRef_Chunked(t *testing.T) {
 	g.Expect(tf.Status.ArtifactRefs.Plan.Chunks).To(Equal(int32(3)))
 }
 
-func TestSetPlanArtifactRef_ConfigMap(t *testing.T) {
+func TestSetPlanArtifactRef_ReplacesPreviousRef(t *testing.T) {
 	g := NewWithT(t)
 	tf := newTF("hello")
+	tf.Status.ArtifactRefs = &infrav1.ArtifactReferences{
+		Plan: &infrav1.PlanArtifactRef{
+			Ref:    meta.NamespacedObjectKindReference{Kind: "Secret", Name: "tfplan-default-hello-0"},
+			PlanID: "plan-old",
+			Chunks: 3,
+		},
+	}
 
 	setPlanArtifactRef(tf, []*runner.SavedObject{
-		{ApiVersion: "v1", Kind: "ConfigMap", Namespace: "flux-system", Name: "tfplan-default-hello"},
-	}, "plan-cm")
+		{ApiVersion: "v1", Kind: "Secret", Namespace: "flux-system", Name: "tfplan-default-hello"},
+	}, "plan-new")
 
-	g.Expect(tf.Status.ArtifactRefs.Plan.Ref.Kind).To(Equal("ConfigMap"))
+	g.Expect(tf.Status.ArtifactRefs.Plan.Ref.Name).To(Equal("tfplan-default-hello"))
+	g.Expect(tf.Status.ArtifactRefs.Plan.PlanID).To(Equal("plan-new"))
+	g.Expect(tf.Status.ArtifactRefs.Plan.Chunks).To(Equal(int32(1)), "stale chunk count must not survive")
 }
 
 func TestSetPlanArtifactRef_EmptyClears(t *testing.T) {
@@ -100,7 +110,7 @@ func TestClearOutputsArtifactRef(t *testing.T) {
 	g := NewWithT(t)
 	tf := newTF("hello")
 	tf.Status.ArtifactRefs = &infrav1.ArtifactReferences{
-		Outputs: &infrav1.TypedObjectReference{Name: "stale"},
+		Outputs: &meta.NamespacedObjectKindReference{Name: "stale"},
 	}
 
 	clearOutputsArtifactRef(tf)
@@ -147,9 +157,10 @@ func TestSetStateArtifactRef_ExplicitBackendConfigEmptySuffix(t *testing.T) {
 
 	setStateArtifactRef(tf, false)
 
-	// Empty suffix falls back to the Terraform name so external consumers
-	// see the same Secret the Kubernetes backend will actually write to.
-	g.Expect(tf.Status.ArtifactRefs.State.Ref.Name).To(Equal("tfstate-default-hello"))
+	// setupTerraform renders secret_suffix verbatim, so an empty suffix
+	// really does produce a "tfstate-{workspace}-" Secret. The reference
+	// mirrors that rather than inventing a default the backend never uses.
+	g.Expect(tf.Status.ArtifactRefs.State.Ref.Name).To(Equal("tfstate-default-"))
 }
 
 func TestSetStateArtifactRef_BackendDisabled(t *testing.T) {
@@ -270,4 +281,38 @@ func TestExtractHCLString(t *testing.T) {
 	g.Expect(extractHCLString(hcl, "bucket")).To(Equal("my-bucket"))
 	g.Expect(extractHCLString(hcl, "region")).To(Equal("us-east-1"))
 	g.Expect(extractHCLString(hcl, "missing")).To(BeEmpty())
+}
+
+func TestExtractHCLString_WholeKeyOnly(t *testing.T) {
+	g := NewWithT(t)
+	hcl := `backend "s3" {
+  bucket_prefix = "not-the-bucket"
+  bucket        = "the-bucket"
+}`
+	// "bucket" must not be satisfied by the bucket_prefix line that precedes it.
+	g.Expect(extractHCLString(hcl, "bucket")).To(Equal("the-bucket"))
+	g.Expect(extractHCLString(hcl, "bucket_prefix")).To(Equal("not-the-bucket"))
+	// A key that only exists as a substring of another key is absent.
+	g.Expect(extractHCLString(hcl, "prefix")).To(BeEmpty())
+}
+
+func TestExtractHCLString_SingleLineBlock(t *testing.T) {
+	g := NewWithT(t)
+	g.Expect(extractHCLString(`backend "s3" { bucket = "inline" }`, "bucket")).To(Equal("inline"))
+}
+
+func TestSetStateArtifactRef_S3BucketPrefix(t *testing.T) {
+	g := NewWithT(t)
+	tf := newTF("hello")
+	tf.Spec.BackendConfig = &infrav1.BackendConfigSpec{
+		CustomConfiguration: `backend "s3" {
+  bucket_prefix = "ignore-me"
+  bucket        = "real-bucket"
+  key           = "state.tfstate"
+}`,
+	}
+
+	setStateArtifactRef(tf, false)
+
+	g.Expect(tf.Status.ArtifactRefs.State.ExternalLocation).To(Equal("s3://real-bucket/state.tfstate"))
 }

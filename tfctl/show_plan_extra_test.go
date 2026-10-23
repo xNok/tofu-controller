@@ -5,6 +5,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
+	"github.com/fluxcd/pkg/apis/meta"
 	infrav1 "github.com/flux-iac/tofu-controller/api/v1alpha2"
 )
 
@@ -14,7 +15,7 @@ func TestPlanExists_TypedRefPreferred(t *testing.T) {
 		Status: infrav1.TerraformStatus{
 			ArtifactRefs: &infrav1.ArtifactReferences{
 				Plan: &infrav1.PlanArtifactRef{
-					Ref: infrav1.TypedObjectReference{
+					Ref: meta.NamespacedObjectKindReference{
 						APIVersion: "v1",
 						Kind:       "ConfigMap",
 						Namespace:  "shared",

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/flux-iac/tofu-controller/api/planid"
+	"github.com/fluxcd/pkg/apis/meta"
 	"github.com/fluxcd/pkg/runtime/patch"
 	corev1 "k8s.io/api/core/v1"
 
@@ -129,9 +130,6 @@ func (r *TerraformReconciler) plan(ctx context.Context, patchHelper *patch.Seria
 		Namespace:                terraform.Namespace,
 		Uuid:                     string(terraform.GetUID()),
 		Revision:                 revision,
-		OwnerUID:                 string(terraform.GetUID()),
-		OwnerAPIVersion:          infrav1.GroupVersion.String(),
-		OwnerKind:                infrav1.TerraformKind,
 	})
 	if err != nil {
 		err = fmt.Errorf("error saving plan secret: %s", err)
@@ -177,7 +175,7 @@ func setPlanArtifactRef(terraform *infrav1.Terraform, saved []*runner.SavedObjec
 		terraform.Status.ArtifactRefs = &infrav1.ArtifactReferences{}
 	}
 	terraform.Status.ArtifactRefs.Plan = &infrav1.PlanArtifactRef{
-		Ref: infrav1.TypedObjectReference{
+		Ref: meta.NamespacedObjectKindReference{
 			APIVersion: primary.ApiVersion,
 			Kind:       primary.Kind,
 			Namespace:  primary.Namespace,

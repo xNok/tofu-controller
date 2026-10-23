@@ -1417,14 +1417,8 @@ type SaveTFPlanRequest struct {
 	Namespace                string                 `protobuf:"bytes,4,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	Uuid                     string                 `protobuf:"bytes,5,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	Revision                 string                 `protobuf:"bytes,6,opt,name=revision,proto3" json:"revision,omitempty"`
-	// ownerUID, ownerAPIVersion and ownerKind identify the parent Terraform CR
-	// so the runner can attach metadata.ownerReferences on the persisted plan
-	// Secrets and ConfigMaps. When empty, no ownerReference is set.
-	OwnerUID        string `protobuf:"bytes,7,opt,name=ownerUID,proto3" json:"ownerUID,omitempty"`
-	OwnerAPIVersion string `protobuf:"bytes,8,opt,name=ownerAPIVersion,proto3" json:"ownerAPIVersion,omitempty"`
-	OwnerKind       string `protobuf:"bytes,9,opt,name=ownerKind,proto3" json:"ownerKind,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *SaveTFPlanRequest) Reset() {
@@ -1495,27 +1489,6 @@ func (x *SaveTFPlanRequest) GetUuid() string {
 func (x *SaveTFPlanRequest) GetRevision() string {
 	if x != nil {
 		return x.Revision
-	}
-	return ""
-}
-
-func (x *SaveTFPlanRequest) GetOwnerUID() string {
-	if x != nil {
-		return x.OwnerUID
-	}
-	return ""
-}
-
-func (x *SaveTFPlanRequest) GetOwnerAPIVersion() string {
-	if x != nil {
-		return x.OwnerAPIVersion
-	}
-	return ""
-}
-
-func (x *SaveTFPlanRequest) GetOwnerKind() string {
-	if x != nil {
-		return x.OwnerKind
 	}
 	return ""
 }
@@ -1594,9 +1567,10 @@ func (x *SavedObject) GetName() string {
 type SaveTFPlanReply struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Message string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
-	// savedObjects lists every Secret or ConfigMap the runner created or
-	// updated to persist this plan. The first entry is the chunk-0 object
-	// when the plan is chunked; siblings follow in order.
+	// savedObjects lists the Secrets holding the canonical (gzipped) plan.
+	// The first entry is the chunk-0 object when the plan is chunked;
+	// siblings follow in order. Readable representations written for
+	// spec.storeReadablePlan are a separate artifact and are not listed.
 	SavedObjects  []*SavedObject `protobuf:"bytes,2,rep,name=savedObjects,proto3" json:"savedObjects,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3354,7 +3328,7 @@ const file_runner_runner_proto_rawDesc = "" +
 	"tfInstance\x12\x1a\n" +
 	"\bfilename\x18\x02 \x01(\tR\bfilename\"4\n" +
 	"\x14ShowPlanFileRawReply\x12\x1c\n" +
-	"\trawOutput\x18\x01 \x01(\tR\trawOutput\"\xb5\x02\n" +
+	"\trawOutput\x18\x01 \x01(\tR\trawOutput\"\xd1\x01\n" +
 	"\x11SaveTFPlanRequest\x12\x1e\n" +
 	"\n" +
 	"tfInstance\x18\x01 \x01(\tR\n" +
@@ -3363,10 +3337,7 @@ const file_runner_runner_proto_rawDesc = "" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12\x1c\n" +
 	"\tnamespace\x18\x04 \x01(\tR\tnamespace\x12\x12\n" +
 	"\x04uuid\x18\x05 \x01(\tR\x04uuid\x12\x1a\n" +
-	"\brevision\x18\x06 \x01(\tR\brevision\x12\x1a\n" +
-	"\bownerUID\x18\a \x01(\tR\bownerUID\x12(\n" +
-	"\x0fownerAPIVersion\x18\b \x01(\tR\x0fownerAPIVersion\x12\x1c\n" +
-	"\townerKind\x18\t \x01(\tR\townerKind\"s\n" +
+	"\brevision\x18\x06 \x01(\tR\brevision\"s\n" +
 	"\vSavedObject\x12\x1e\n" +
 	"\n" +
 	"apiVersion\x18\x01 \x01(\tR\n" +

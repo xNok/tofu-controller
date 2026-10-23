@@ -183,12 +183,6 @@ message SaveTFPlanRequest {
   string namespace = 4;
   string uuid = 5;
   string revision = 6;
-  // ownerUID, ownerAPIVersion and ownerKind identify the parent Terraform CR
-  // so the runner can attach metadata.ownerReferences on the persisted plan
-  // Secrets and ConfigMaps. When empty, no ownerReference is set.
-  string ownerUID = 7;
-  string ownerAPIVersion = 8;
-  string ownerKind = 9;
 }
 
 // SavedObject identifies a single Kubernetes object that the runner persisted
@@ -203,9 +197,10 @@ message SavedObject {
 
 message SaveTFPlanReply {
   string message = 1;
-  // savedObjects lists every Secret or ConfigMap the runner created or
-  // updated to persist this plan. The first entry is the chunk-0 object
-  // when the plan is chunked; siblings follow in order.
+  // savedObjects lists the Secrets holding the canonical (gzipped) plan.
+  // The first entry is the chunk-0 object when the plan is chunked;
+  // siblings follow in order. Readable representations written for
+  // spec.storeReadablePlan are a separate artifact and are not listed.
   repeated SavedObject savedObjects = 2;
 }
 

@@ -14,6 +14,31 @@ Package v1alpha2 contains API Schema definitions for the infra v1alpha2 API grou
 ### Resource Types
 - [Terraform](#terraform)
 
+### ArtifactReferences
+
+ArtifactReferences groups the runtime artifact references that the
+controller publishes after a successful plan / apply / output cycle.
+External tooling should prefer these typed references over reconstructing
+names from internal conventions or scanning labels.
+
+This mirrors the way Flux controllers publish what they produced in their
+own status: source-controller exposes status.artifact (meta.Artifact) on
+GitRepository, OCIRepository, Bucket, HelmChart and ExternalArtifact, and
+kustomize-controller records the objects it applied in
+Kustomization.status.inventory. The individual references use
+meta.NamespacedObjectKindReference, the same type Flux uses for
+Kustomization.spec.healthChecks and ExternalArtifact.spec.sourceRef.
+
+_Appears in:_
+- [TerraformStatus](#terraformstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `plan` _[PlanArtifactRef](#planartifactref)_ | Plan points at the Secret holding the most recently saved plan.<br />Nil before the first successful plan or when no plan is currently<br />persisted. The readable copies written for spec.storeReadablePlan<br />are a separate artifact and are not referenced here. |  | Optional: \{\} <br /> |
+| `state` _[StateArtifactRef](#stateartifactref)_ | State points at the state Secret when the Kubernetes backend is in<br />use. When an external backend (S3/GCS/HTTP/...) is configured, Ref is<br />nil and ExternalLocation carries a best-effort hint. |  | Optional: \{\} <br /> |
+| `outputs` _[NamespacedObjectKindReference](#namespacedobjectkindreference)_ | Outputs points at the Secret named by spec.writeOutputsToSecret once<br />it has actually been written by the controller. Nil if outputs are<br />not configured, not yet written, or destroyed. |  | Optional: \{\} <br /> |
+
+
 ### BackendConfigSpec
 
 BackendConfigSpec is for specifying configuration for Terraform's Kubernetes backend
@@ -150,6 +175,21 @@ _Appears in:_
 | `pending` _string_ | Pending holds the identifier of the Lock Holder to be used with Force Unlock |  | Optional: \{\} <br /> |
 
 
+### PlanArtifactRef
+
+PlanArtifactRef pairs a strongly typed object reference with the
+pending plan ID so callers do not need to correlate via labels.
+
+_Appears in:_
+- [ArtifactReferences](#artifactreferences)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ref` _[NamespacedObjectKindReference](#namespacedobjectkindreference)_ | Ref is the Secret holding the gzipped plan body. When the plan is<br />chunked across multiple Secrets, Ref points at the chunk-0 object;<br />siblings can be located via the infra.contrib.fluxcd.io/plan-name<br />and plan-workspace labels or by listing objects with the same<br />ownerReference. |  | Required: \{\} <br /> |
+| `planID` _string_ | PlanID mirrors Status.Plan.Pending. Duplicated here so a single<br />status read fully identifies the artifact. |  | Optional: \{\} <br /> |
+| `chunks` _integer_ | Chunks is the number of Secrets the gzipped plan is spread across<br />(>= 1). |  | Optional: \{\} <br /> |
+
+
 ### PlanSpec
 
 PlanSpec configures options that apply only to the plan phase, affecting how
@@ -174,8 +214,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `lastApplied` _string_ |  |  | Optional: \{\} <br /> |
-| `pending` _string_ |  |  | Optional: \{\} <br /> |
+| `lastApplied` _string_ | LastApplied is the short identifier of the most recently applied plan.<br />Deprecated: prefer Status.ArtifactRefs.Plan together with<br />Status.LastAppliedRevision. This field is retained for compatibility<br />with v1alpha2 consumers and is scheduled for removal in v1beta1. |  | Optional: \{\} <br /> |
+| `pending` _string_ | Pending is the short identifier of the currently pending plan.<br />Deprecated: prefer Status.ArtifactRefs.Plan.PlanID, which is paired<br />with a typed object reference to the plan Secret or ConfigMap. This<br />field is retained for compatibility with v1alpha2 consumers and is<br />scheduled for removal in v1beta1. |  | Optional: \{\} <br /> |
 | `isDestroyPlan` _boolean_ |  |  | Optional: \{\} <br /> |
 | `isDriftDetectionPlan` _boolean_ |  |  | Optional: \{\} <br /> |
 
@@ -284,6 +324,23 @@ _Appears in:_
 | `spec` _[RunnerPodSpec](#runnerpodspec)_ |  |  | Optional: \{\} <br /> |
 
 
+### StateArtifactRef
+
+StateArtifactRef is either a reference to the in-cluster state Secret
+(Kubernetes backend) or an external location hint (every other backend).
+Exactly one of Ref / ExternalLocation should be set; Backend is always
+populated.
+
+_Appears in:_
+- [ArtifactReferences](#artifactreferences)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `backend` _string_ | Backend identifies which Terraform backend produced this state,<br />e.g. "kubernetes", "s3", "gcs", "http", "remote". |  | MinLength: 1 <br />Required: \{\} <br /> |
+| `ref` _[NamespacedObjectKindReference](#namespacedobjectkindreference)_ | Ref is set only when Backend == "kubernetes". It points at the<br />tfstate-\{workspace\}-\{secretSuffix\} Secret in the Terraform's<br />namespace. |  | Optional: \{\} <br /> |
+| `externalLocation` _string_ | ExternalLocation is a free-form, human-readable hint for non-<br />Kubernetes backends, e.g. "s3://my-bucket/path/to/state". It is not<br />parsed by the controller and exists solely for tooling. |  | Optional: \{\} <br /> |
+
+
 ### TFStateSpec
 
 TFStateSpec allows the user to set ForceUnlock
@@ -389,6 +446,7 @@ _Appears in:_
 | `availableOutputs` _string array_ |  |  | Optional: \{\} <br /> |
 | `plan` _[PlanStatus](#planstatus)_ |  |  | Optional: \{\} <br /> |
 | `inventory` _[ResourceInventory](#resourceinventory)_ | Inventory contains the list of Terraform resource object references that have been successfully applied. |  | Optional: \{\} <br /> |
+| `artifactRefs` _[ArtifactReferences](#artifactreferences)_ | ArtifactRefs surfaces the Kubernetes objects this Terraform manages<br />as runtime artifacts (plan, state, outputs). External tooling should<br />prefer these references over the deprecated string fields and over<br />label scans. |  | Optional: \{\} <br /> |
 | `lock` _[LockStatus](#lockstatus)_ |  |  | Optional: \{\} <br /> |
 | `reconciliationFailures` _integer_ | ReconciliationFailures is the number of reconciliation<br />failures since the last success or update. |  | Optional: \{\} <br /> |
 

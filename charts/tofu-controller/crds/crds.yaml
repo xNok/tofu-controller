@@ -11286,38 +11286,34 @@ spec:
                       not configured, not yet written, or destroyed.
                     properties:
                       apiVersion:
-                        description: APIVersion of the referent (e.g. "v1").
-                        minLength: 1
+                        description: API version of the referent, if not specified
+                          the Kubernetes preferred version will be used.
                         type: string
                       kind:
-                        description: Kind of the referent (e.g. "Secret", "ConfigMap").
-                        minLength: 1
+                        description: Kind of the referent.
                         type: string
                       name:
                         description: Name of the referent.
-                        maxLength: 253
-                        minLength: 1
                         type: string
                       namespace:
-                        description: |-
-                          Namespace of the referent. When empty, the referent is assumed to live
-                          in the same namespace as the resource carrying this reference.
+                        description: Namespace of the referent, when not specified
+                          it acts as LocalObjectReference.
                         type: string
                     required:
-                    - apiVersion
                     - kind
                     - name
                     type: object
                   plan:
                     description: |-
-                      Plan points at the most recently saved plan object (Secret for gzip
-                      plans and JSON readable plans, ConfigMap for human-readable plans).
+                      Plan points at the Secret holding the most recently saved plan.
                       Nil before the first successful plan or when no plan is currently
-                      persisted.
+                      persisted. The readable copies written for spec.storeReadablePlan
+                      are a separate artifact and are not referenced here.
                     properties:
                       chunks:
-                        description: Chunks is the number of objects the plan is spread
-                          across (>= 1).
+                        description: |-
+                          Chunks is the number of Secrets the gzipped plan is spread across
+                          (>= 1).
                         format: int32
                         type: integer
                       planID:
@@ -11327,32 +11323,27 @@ spec:
                         type: string
                       ref:
                         description: |-
-                          Ref is the Secret or ConfigMap holding the gzipped (or readable)
-                          plan body. When the plan is chunked across multiple objects, Ref
-                          points at the chunk-0 object; siblings can be located via the
-                          infra.contrib.fluxcd.io/plan-name and plan-workspace labels or by
-                          listing objects with the same ownerReference.
+                          Ref is the Secret holding the gzipped plan body. When the plan is
+                          chunked across multiple Secrets, Ref points at the chunk-0 object;
+                          siblings can be located via the infra.contrib.fluxcd.io/plan-name
+                          and plan-workspace labels or by listing objects with the same
+                          ownerReference.
                         properties:
                           apiVersion:
-                            description: APIVersion of the referent (e.g. "v1").
-                            minLength: 1
+                            description: API version of the referent, if not specified
+                              the Kubernetes preferred version will be used.
                             type: string
                           kind:
-                            description: Kind of the referent (e.g. "Secret", "ConfigMap").
-                            minLength: 1
+                            description: Kind of the referent.
                             type: string
                           name:
                             description: Name of the referent.
-                            maxLength: 253
-                            minLength: 1
                             type: string
                           namespace:
-                            description: |-
-                              Namespace of the referent. When empty, the referent is assumed to live
-                              in the same namespace as the resource carrying this reference.
+                            description: Namespace of the referent, when not specified
+                              it acts as LocalObjectReference.
                             type: string
                         required:
-                        - apiVersion
                         - kind
                         - name
                         type: object
@@ -11380,28 +11371,24 @@ spec:
                       ref:
                         description: |-
                           Ref is set only when Backend == "kubernetes". It points at the
-                          tfstate-{secretSuffix} Secret in the Terraform's namespace.
+                          tfstate-{workspace}-{secretSuffix} Secret in the Terraform's
+                          namespace.
                         properties:
                           apiVersion:
-                            description: APIVersion of the referent (e.g. "v1").
-                            minLength: 1
+                            description: API version of the referent, if not specified
+                              the Kubernetes preferred version will be used.
                             type: string
                           kind:
-                            description: Kind of the referent (e.g. "Secret", "ConfigMap").
-                            minLength: 1
+                            description: Kind of the referent.
                             type: string
                           name:
                             description: Name of the referent.
-                            maxLength: 253
-                            minLength: 1
                             type: string
                           namespace:
-                            description: |-
-                              Namespace of the referent. When empty, the referent is assumed to live
-                              in the same namespace as the resource carrying this reference.
+                            description: Namespace of the referent, when not specified
+                              it acts as LocalObjectReference.
                             type: string
                         required:
-                        - apiVersion
                         - kind
                         - name
                         type: object
