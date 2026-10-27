@@ -184,6 +184,7 @@ func (s *Server) createLabels(labels map[string]string, originalName string, bra
 	resultLabels := make(map[string]string)
 	maps.Copy(resultLabels, labels)
 
+	maps.Copy(resultLabels, infrav1.ManagedLabels())
 	resultLabels[bpconfig.LabelKey] = bpconfig.LabelValue
 	resultLabels[bpconfig.LabelPrimaryResourceKey] = originalName
 	resultLabels[bpconfig.LabelPRIDKey] = prID
