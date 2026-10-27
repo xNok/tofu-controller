@@ -145,6 +145,10 @@ func Test_009990_mtls_generate_creds_test(t *testing.T) {
 	By("verifying that the runner cert secret has the appropriate labels")
 	labels := runnerSecret.GetLabels()
 	g.Expect(labels).To(HaveKey(infrav1.RunnerLabel))
+	g.Expect(labels).To(HaveKeyWithValue(infrav1.ManagedByLabel, infrav1.ManagedByValue))
+	// This Secret is per-namespace and shared by every runner in it, so it
+	// must not claim to belong to any one Terraform.
+	g.Expect(labels).NotTo(HaveKey(infrav1.TerraformNameLabel))
 
 	By("verifying that the runner cert is valid for a range of hostnames in a given namespace")
 	tlsCert := runnerSecret.Data["tls.crt"]

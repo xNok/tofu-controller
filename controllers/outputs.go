@@ -168,13 +168,17 @@ func (r *TerraformReconciler) writeOutput(ctx context.Context, s *runnerSession,
 	}
 
 	writeOutputsReply, err := s.client.WriteOutputs(ctx, &runner.WriteOutputsRequest{
-		Namespace:   terraform.Namespace,
-		Name:        terraform.Name,
-		SecretName:  terraform.Spec.WriteOutputsToSecret.Name,
-		Uuid:        string(terraform.UID),
-		Data:        data,
-		Labels:      terraform.Spec.WriteOutputsToSecret.Labels,
-		Annotations: terraform.Spec.WriteOutputsToSecret.Annotations,
+		Namespace:  terraform.Namespace,
+		Name:       terraform.Name,
+		SecretName: terraform.Spec.WriteOutputsToSecret.Name,
+		Uuid:       string(terraform.UID),
+		Data:       data,
+		// Ownership labels are merged here rather than in the runner so the
+		// runner keeps writing exactly what it is handed. They are applied
+		// over the user's map on purpose: attribution must not be breakable
+		// from spec.
+		Labels:      infrav1.WithOwnedLabels(terraform.Spec.WriteOutputsToSecret.Labels, terraform.Name, terraform.Namespace),
+		Annotations: infrav1.WithOwnedAnnotations(terraform.Spec.WriteOutputsToSecret.Annotations, terraform.Name),
 	})
 	if err != nil {
 		return notReady(terraform, s.revision, infrav1.OutputsWritingFailedReason, err)
