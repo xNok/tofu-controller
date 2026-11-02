@@ -149,4 +149,9 @@ func Test_000041_all_outputs_test(t *testing.T) {
 		}, err
 	}, timeout, interval).Should(Equal(expectedOutputValue), "expected output %v", expectedOutputValue)
 
+	By("checking that the output secret is attributable to the Terraform that produced it.")
+	outputLabels := outputSecret.GetLabels()
+	g.Expect(outputLabels).To(HaveKeyWithValue(infrav1.ManagedByLabel, infrav1.ManagedByValue))
+	g.Expect(outputLabels).To(HaveKeyWithValue(infrav1.TerraformNameLabel, terraformName))
+	g.Expect(outputLabels).To(HaveKeyWithValue(infrav1.TerraformNamespaceLabel, "flux-system"))
 }

@@ -30,22 +30,25 @@ const (
 	resourceDataMaxSizeBytes = 1 * 1024 * 1024 // 1MB
 )
 
-// SafeLabelValue returns a string that is safe to use as a Kubernetes label value.
+// SafeLabelValue returns a string that is safe to use as a Kubernetes label
+// value.
+//
+// The implementation lives in api/v1alpha2 so that package can build labels
+// without importing api/plan, which would be a cycle. This stays as the
+// published name: tfctl and the runner both call it.
 func SafeLabelValue(value string) string {
-	// Values that are equal to or less than 63 characters are already good
-	if len(value) <= 63 {
-		return value
-	}
+	return infrav1.SafeLabelValue(value)
+}
 
-	// Create haash
-	checksum := sha256.Sum256([]byte(value))
+// objectLabels are the labels every object holding a plan carries: the plan
+// identity used to list chunks, plus the ownership labels shared with every
+// other object the controller creates.
+func (p *Plan) objectLabels(suffix string) map[string]string {
+	labels := infrav1.OwnedLabelsFor(p.name, p.namespace)
+	labels[TFPlanNameLabel] = SafeLabelValue(p.name + suffix)
+	labels[TFPlanWorkspaceLabel] = SafeLabelValue(p.workspace)
 
-	// Build a prefix to append to end of truncated value
-	checksumPrefix := fmt.Sprintf("-%x", checksum[:8])
-
-	prefix := value[:63-len(checksumPrefix)]
-
-	return prefix + checksumPrefix
+	return labels
 }
 
 type Plan struct {
@@ -227,10 +230,7 @@ func (p *Plan) ToSecret(suffix string) ([]*v1.Secret, error) {
 					TFPlanSavedAnnotation:         p.planID,
 					TFPlanHashAnnotation:          fmt.Sprintf("%x", sha256.Sum256(p.bytes)),
 				},
-				Labels: map[string]string{
-					TFPlanNameLabel:      SafeLabelValue(p.name + suffix),
-					TFPlanWorkspaceLabel: SafeLabelValue(p.workspace),
-				},
+				Labels: p.objectLabels(suffix),
 				OwnerReferences: []metav1.OwnerReference{
 					{
 						APIVersion: infrav1.GroupVersion.Group + "/" + infrav1.GroupVersion.Version,
@@ -270,10 +270,7 @@ func (p *Plan) ToSecret(suffix string) ([]*v1.Secret, error) {
 					TFPlanChunkAnnotation:         fmt.Sprintf("%d", chunk),
 					TFPlanHashAnnotation:          fmt.Sprintf("%x", sha256.Sum256(planData)),
 				},
-				Labels: map[string]string{
-					TFPlanNameLabel:      SafeLabelValue(p.name + suffix),
-					TFPlanWorkspaceLabel: SafeLabelValue(p.workspace),
-				},
+				Labels: p.objectLabels(suffix),
 				OwnerReferences: []metav1.OwnerReference{
 					{
 						APIVersion: infrav1.GroupVersion.Group + "/" + infrav1.GroupVersion.Version,
@@ -315,10 +312,7 @@ func (p *Plan) ToConfigMap(suffix string) ([]*v1.ConfigMap, error) {
 					TFPlanSavedAnnotation:         p.planID,
 					TFPlanHashAnnotation:          fmt.Sprintf("%x", sha256.Sum256(p.bytes)),
 				},
-				Labels: map[string]string{
-					TFPlanNameLabel:      SafeLabelValue(p.name + suffix),
-					TFPlanWorkspaceLabel: SafeLabelValue(p.workspace),
-				},
+				Labels: p.objectLabels(suffix),
 				OwnerReferences: []metav1.OwnerReference{
 					{
 						APIVersion: infrav1.GroupVersion.Group + "/" + infrav1.GroupVersion.Version,
@@ -357,10 +351,7 @@ func (p *Plan) ToConfigMap(suffix string) ([]*v1.ConfigMap, error) {
 					TFPlanChunkAnnotation:         fmt.Sprintf("%d", chunk),
 					TFPlanHashAnnotation:          fmt.Sprintf("%x", sha256.Sum256([]byte(planData))),
 				},
-				Labels: map[string]string{
-					TFPlanNameLabel:      SafeLabelValue(p.name + suffix),
-					TFPlanWorkspaceLabel: SafeLabelValue(p.workspace),
-				},
+				Labels: p.objectLabels(suffix),
 				OwnerReferences: []metav1.OwnerReference{
 					{
 						APIVersion: infrav1.GroupVersion.Group + "/" + infrav1.GroupVersion.Version,

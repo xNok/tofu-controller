@@ -641,9 +641,11 @@ func (cr *CertRotator) generateNamespaceTLS(namespace string) (*corev1.Secret, e
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
-			Labels: map[string]string{
+			// No ownership labels: this Secret is per-namespace and shared by
+			// every runner in it, so it belongs to no single Terraform.
+			Labels: infrav1.WithManagedLabels(map[string]string{
 				infrav1.RunnerLabel: "true",
-			},
+			}),
 		},
 		Immutable: &isImmutable, // we set immutable to true to reduce loads on the ETCd server
 		Type:      corev1.SecretTypeTLS,

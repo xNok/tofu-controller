@@ -2,8 +2,11 @@ metadata:
   labels:
     app.kubernetes.io/created-by: tofu-controller
     app.kubernetes.io/instance: tf-runner-b8e362c2
+    app.kubernetes.io/managed-by: tofu-controller
     app.kubernetes.io/name: tf-runner
     infra.contrib.fluxcd.io/terraform: flux-system
+    infra.contrib.fluxcd.io/terraform-name: char-000460-tf
+    infra.contrib.fluxcd.io/terraform-namespace: flux-system
     tf.weave.works/tls-secret-name: <tls-secret>
   name: char-000460-tf-tf-runner
   namespace: flux-system

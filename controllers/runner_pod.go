@@ -81,6 +81,12 @@ func runnerPodTemplate(terraform *infrav1.Terraform, secretName string, revision
 	if len(terraform.Spec.RunnerPodTemplate.Metadata.Labels) != 0 {
 		maps.Copy(runnerPodTemplate.Labels, terraform.Spec.RunnerPodTemplate.Metadata.Labels)
 	}
+
+	// Ownership labels go on last: the controller selects and attributes on
+	// them, so a custom pod label must not be able to overwrite them.
+	maps.Copy(runnerPodTemplate.Labels, infrav1.OwnedLabels(terraform))
+	runnerPodTemplate.Annotations = infrav1.WithOwnedAnnotations(runnerPodTemplate.Annotations, terraform.Name)
+
 	return runnerPodTemplate, nil
 }
 
